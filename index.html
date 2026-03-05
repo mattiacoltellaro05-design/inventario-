@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍸 Mint Inventory</title>
+    <title>🍸 Mint Inventory PRO</title>
+    <script src="https://cdn.jsdelivr.net/npm/@zxing/library@latest/umd/index.min.js"></script>
     <style>
+        /* [STILE IDENTICO ALL'ORIGINAL - Nessun cambiamento CSS] */
         :root {
             --mint-green: #00D4AA;
             --mint-green-dark: #00B894;
@@ -16,11 +18,7 @@
             --mint-border: rgba(0,212,170,0.2);
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
@@ -60,15 +58,9 @@
             letter-spacing: -0.02em;
         }
 
-        .header p {
-            font-size: 17px;
-            color: rgba(255,255,255,0.9);
-            font-weight: 500;
-        }
+        .header p { font-size: 17px; color: rgba(255,255,255,0.9); font-weight: 500; }
 
-        .content {
-            padding: 40px 32px 32px;
-        }
+        .content { padding: 40px 32px 32px; }
 
         .action-grid {
             display: grid;
@@ -106,9 +98,7 @@
             transition: left 0.5s;
         }
 
-        .mint-btn:hover::before {
-            left: 100%;
-        }
+        .mint-btn:hover::before { left: 100%; }
 
         .mint-btn-add {
             background: linear-gradient(135deg, var(--mint-green), var(--mint-green-dark));
@@ -123,7 +113,6 @@
 
         .mint-btn-add.active {
             background: linear-gradient(135deg, #00C997, #00B58A);
-            box-shadow: 0 0 0 0px var(--mint-green);
         }
 
         .mint-btn-remove {
@@ -141,12 +130,8 @@
             background: linear-gradient(135deg, #FF5252, #FF7675);
         }
 
-        .scanner-section {
-            display: none;
-            margin-bottom: 24px;
-        }
-
-        .scanner-section.active {
+        .scanner-section { display: none; margin-bottom: 24px; }
+        .scanner-section.active { 
             display: block;
             animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -189,14 +174,29 @@
             background: linear-gradient(135deg, var(--mint-green), var(--mint-green-dark));
         }
 
-        .manual-input {
+        .scan-result {
+            background: rgba(0,212,170,0.2);
+            border: 2px solid var(--mint-green);
+            border-radius: 16px;
+            padding: 16px;
+            margin: 12px 0;
+            text-align: center;
             display: none;
-            margin-bottom: 24px;
         }
 
-        .manual-input.active {
+        .scan-result.active {
             display: block;
+            animation: pulse 0.6s;
         }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        .manual-input { display: none; margin-bottom: 24px; }
+        .manual-input.active { display: block; }
 
         .mint-input {
             width: 100%;
@@ -287,10 +287,7 @@
             box-shadow: 0 8px 20px rgba(0,212,170,0.3);
         }
 
-        .custom-qty {
-            grid-column: 1 / -1;
-            margin-top: 16px;
-        }
+        .custom-qty { grid-column: 1 / -1; margin-top: 16px; }
 
         .inventory-list {
             max-height: 320px;
@@ -350,10 +347,7 @@
             backdrop-filter: blur(10px);
         }
 
-        .stat {
-            text-align: center;
-        }
-
+        .stat { text-align: center; }
         .stat-number {
             font-size: 28px;
             font-weight: 800;
@@ -361,7 +355,6 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-
         .stat-label {
             font-size: 14px;
             color: #666;
@@ -390,8 +383,8 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🍸 Mint Inventory</h1>
-            <p>Gestione magazzino bottiglie</p>
+            <h1>🍸 Mint Inventory PRO</h1>
+            <p>Scanner codici a barre reali</p>
         </div>
 
         <div class="content">
@@ -406,29 +399,27 @@
                 </button>
             </div>
 
-            <!-- Scanner con fotocamera reale ✅ -->
+            <!-- ✅ ZXING SCANNER PROFESSIONALE -->
             <div id="scannerSection" class="scanner-section">
                 <div style="text-align: center; margin-bottom: 12px;">
-                    <button id="startCamera" class="mint-btn">
-                        📷 Avvia Fotocamera
-                    </button>
+                    <button id="startCamera" class="mint-btn">📷 Scanner ON</button>
                 </div>
                 <div class="scanner-frame">
                     <video id="scannerVideo" autoplay playsinline muted></video>
-                    <canvas id="scannerCanvas" style="display: none;"></canvas>
                 </div>
-                <div style="text-align: center; color: #666; font-size: 15px; margin: 16px 0;">
-                    Oppure incolla codice: <kbd style="background: rgba(0,212,170,0.2); padding: 4px 8px; border-radius: 6px;">Ctrl+V</kbd>
+                <div id="scanResult" class="scan-result">
+                    <div id="scanCode">-</div>
+                    <div id="scanName">-</div>
                 </div>
             </div>
 
-            <!-- Input Manuale (fallback) -->
+            <!-- Fallback manuale -->
             <div id="inputSection" class="manual-input active">
                 <input type="text" class="mint-input" id="barcodeInput" 
-                       placeholder="📥 Incolla codice a barre (Ctrl+V) o premi Invio" autofocus>
+                       placeholder="📥 Incolla codice (Ctrl+V) o Enter" autofocus>
             </div>
 
-            <!-- Quantity Selector -->
+            <!-- Quantity -->
             <div id="quantitySection" class="quantity-section">
                 <div class="item-preview">
                     <div class="preview-name" id="previewName">Nome bottiglia</div>
@@ -450,7 +441,7 @@
             <div id="emptyState" class="empty-state">
                 <div class="empty-icon">🍾</div>
                 <h3>Il caveau è vuoto</h3>
-                <p>Incolla il primo codice a barre per iniziare</p>
+                <p>Scannerizza la prima bottiglia!</p>
             </div>
 
             <div class="stats-grid" id="statsGrid" style="display: none;">
@@ -467,18 +458,18 @@
     </div>
 
     <script>
-        // Dati app
+        // DATI APP
         let inventory = JSON.parse(localStorage.getItem('mintInventory')) || {};
         let bottleNames = JSON.parse(localStorage.getItem('bottleNames')) || {};
         let currentMode = null;
         let currentBarcode = null;
+        let codeReader = null;
         let stream = null;
-        let scanInterval = null;
 
-        // === DATABASE BOTTIGLIE ITALIANE ===
+        // 🗄️ DATABASE BOTTIGLIE ITALIANE
         const COMMON_BOTTLES = {
             '8001100001014': 'Campari',
-            '8000620001019': 'Aperol',
+            '8000620001019': 'Aperol', 
             '8010319001013': 'Martini Rosso',
             '8005100001012': 'Select',
             '8003840001015': 'Amaretto Disaronno',
@@ -490,72 +481,64 @@
         };
 
         function getBottleName(barcode) {
-            return COMMON_BOTTLES[barcode] || 
-                   bottleNames[barcode] || 
-                   `Bottiglia ${barcode.slice(-8).replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0,8)}`;
+            return COMMON_BOTTLES[barcode] || bottleNames[barcode] || 
+                   `Bottiglia ${barcode.slice(-8).toUpperCase()}`;
         }
 
-        // === FOTOCAMERA SCANNER ✅ ===
+        // 🔥 ZXING SCANNER REALE
         const video = document.getElementById('scannerVideo');
-        const canvas = document.getElementById('scannerCanvas');
-        const ctx = canvas.getContext('2d');
-
-        async function startCamera() {
+        
+        async function initScanner() {
+            codeReader = new ZXing.BrowserBarcodeReader();
             try {
                 stream = await navigator.mediaDevices.getUserMedia({
-                    video: { 
-                        facingMode: 'environment', // Camera POSTERIORE
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 }
-                    }
+                    video: { facingMode: 'environment' }
                 });
                 video.srcObject = stream;
                 video.style.display = 'block';
                 document.getElementById('startCamera').style.display = 'none';
                 
-                // Scansione automatica ogni 300ms
-                scanInterval = setInterval(() => {
-                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        ctx.drawImage(video, 0, 0);
-                        
-                        // Simulazione scansione (per test rapidi)
-                        const code = detectBarcodeSimulated();
-                        if (code && !currentBarcode) {
-                            processBarcode(code);
-                            stopCamera();
+                // ✅ SCANSIONE REALE CODICI A BARRE
+                codeReader.decodeFromVideoDevice(
+                    null, // default camera
+                    video,
+                    (result, err) => {
+                        if (result) {
+                            const code = result.text;
+                            console.log('✅ CODICE RILEVATO:', code);
+                            
+                            // Mostra risultato
+                            document.getElementById('scanCode').textContent = code;
+                            document.getElementById('scanName').textContent = getBottleName(code);
+                            document.getElementById('scanResult').classList.add('active');
+                            
+                            // Processa automaticamente
+                            setTimeout(() => {
+                                processBarcode(code);
+                            }, 800);
+                        }
+                        if (err && !(err.name == 'NotFoundError')) {
+                            console.error('Errore scanner:', err);
                         }
                     }
-                }, 300);
-                
+                );
             } catch (err) {
-                console.error('Fotocamera:', err);
-                alert('Camera non disponibile. Usa input manuale.');
+                console.error('Camera error:', err);
+                alert('Usa input manuale');
                 showManualInput();
             }
         }
 
-        function stopCamera() {
+        function stopScanner() {
+            if (codeReader) {
+                codeReader.reset();
+            }
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
-                stream = null;
-            }
-            if (scanInterval) {
-                clearInterval(scanInterval);
-                scanInterval = null;
             }
             video.style.display = 'none';
             document.getElementById('startCamera').style.display = 'inline-flex';
-        }
-
-        // Simulazione per test (rimuovi in produzione)
-        function detectBarcodeSimulated() {
-            const testCodes = ['8001100001014', '8000620001019'];
-            if (Math.random() < 0.1) { // 10% chance
-                return testCodes[Math.floor(Math.random() * testCodes.length)];
-            }
-            return null;
+            document.getElementById('scanResult').classList.remove('active');
         }
 
         function showScanner() {
@@ -569,21 +552,18 @@
             document.getElementById('barcodeInput').focus();
         }
 
-        // Inizializza interfaccia
+        // INIZIALIZZAZIONE
         document.addEventListener('DOMContentLoaded', () => {
             updateDisplay();
             setupEventListeners();
         });
 
         function setupEventListeners() {
-            // Pulsanti modalità
             document.getElementById('addBtn').onclick = () => setMode('add');
             document.getElementById('removeBtn').onclick = () => setMode('remove');
+            document.getElementById('startCamera').onclick = initScanner;
 
-            // Fotocamera
-            document.getElementById('startCamera').onclick = startCamera;
-
-            // Input barcode manuale
+            // Input manuale
             const barcodeInput = document.getElementById('barcodeInput');
             barcodeInput.onkeypress = (e) => {
                 if (e.key === 'Enter') {
@@ -591,7 +571,6 @@
                     if (code) processBarcode(code);
                 }
             };
-
             barcodeInput.onpaste = () => {
                 setTimeout(() => {
                     const code = barcodeInput.value.trim();
@@ -599,22 +578,17 @@
                 }, 100);
             };
 
-            // Pulizia automatica
             document.addEventListener('visibilitychange', () => {
-                if (document.hidden) stopCamera();
+                if (document.hidden) stopScanner();
             });
         }
 
         function setMode(mode) {
             currentMode = mode;
-            
             document.querySelectorAll('.mint-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(mode === 'add' ? 'addBtn' : 'removeBtn').classList.add('active');
             
-            // Mostra scanner
             showScanner();
-            
-            // Reset
             document.getElementById('quantitySection').style.display = 'none';
             document.getElementById('barcodeInput').value = '';
         }
@@ -628,7 +602,8 @@
             document.getElementById('quantitySection').style.display = 'block';
             
             setupQuantityButtons();
-            stopCamera(); // Ferma camera dopo scansione
+            stopScanner();
+            showManualInput();
         }
 
         function setupQuantityButtons() {
@@ -645,12 +620,10 @@
                 };
             });
 
-            const customBtn = document.querySelector('[data-qty="altro"]');
-            customBtn.onclick = (e) => {
+            document.querySelector('[data-qty="altro"]').onclick = (e) => {
                 e.stopPropagation();
-                const custom = document.getElementById('customQtyInput');
-                custom.style.display = 'block';
-                custom.focus();
+                document.getElementById('customQtyInput').style.display = 'block';
+                document.getElementById('customQtyInput').focus();
             };
 
             document.getElementById('customQtyInput').onkeypress = (e) => {
@@ -666,20 +639,15 @@
 
             if (currentMode === 'add') {
                 inventory[currentBarcode] = (inventory[currentBarcode] || 0) + qty;
-                
                 if (!bottleNames[currentBarcode]) {
                     const proposed = getBottleName(currentBarcode);
-                    const name = prompt('Nome bottiglia (opzionale):', proposed);
-                    if (name && name.trim()) {
-                        bottleNames[currentBarcode] = name.trim();
-                    }
+                    const name = prompt('Nome bottiglia:', proposed);
+                    if (name && name.trim()) bottleNames[currentBarcode] = name.trim();
                 }
             } else {
                 if (inventory[currentBarcode]) {
                     inventory[currentBarcode] = Math.max(0, inventory[currentBarcode] - qty);
-                    if (inventory[currentBarcode] === 0) {
-                        delete inventory[currentBarcode];
-                    }
+                    if (inventory[currentBarcode] === 0) delete inventory[currentBarcode];
                 }
             }
 
@@ -750,4 +718,3 @@
     </script>
 </body>
 </html>
-
