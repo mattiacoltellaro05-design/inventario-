@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mint Inventory - Gestione Bottiglie</title>
-    <!-- html5-qrcode per scansione camera -->
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
         * {
@@ -289,11 +288,9 @@
             .action-buttons {
                 grid-template-columns: 1fr;
             }
-            
             .qty-group {
                 flex-direction: column;
             }
-            
             #scanner {
                 height: 250px;
             }
@@ -317,7 +314,6 @@
                 </button>
             </div>
 
-            <!-- Scanner Camera -->
             <div id="scannerContainer" class="scanner-container">
                 <div id="scanner"></div>
                 <div class="scanner-overlay"></div>
@@ -329,17 +325,16 @@
                 </button>
             </div>
 
-            <!-- Input Manuale -->
             <div id="manualInput" class="manual-input">
                 <input type="text" class="scan-input" id="scanInput" 
                        placeholder="Incolla codice a barre o digita..." autocomplete="off">
             </div>
 
-            <!-- Selettore Quantità -->
             <div id="quantitySelector" class="quantity-selector">
                 <div style="text-align: center; margin-bottom: 20px;">
                     <h3 id="currentItemName">Bottiglia</h3>
                     <p id="currentBarcode"></p>
+                    <p id="itemBrand" style="font-size: 14px; color: #10b981; font-weight: 600;"></p>
                 </div>
                 <div class="qty-group">
                     <button class="qty-btn" data-qty="1">1</button>
@@ -354,7 +349,6 @@
                 </div>
             </div>
 
-            <!-- Lista Inventario -->
             <div id="inventoryList" class="inventory-list"></div>
             
             <div id="emptyState" class="empty-state">
@@ -363,7 +357,6 @@
                 <p>Scansiona la prima bottiglia per iniziare</p>
             </div>
 
-            <!-- Statistiche -->
             <div class="stats" id="stats" style="display: none;">
                 <div class="stat">
                     <div class="stat-number" id="totalItems">0</div>
@@ -379,21 +372,49 @@
 
     <script>
         let inventory = JSON.parse(localStorage.getItem('mintInventory')) || {};
-        let currentMode = null; // 'add' o 'remove'
+        let bottleNames = JSON.parse(localStorage.getItem('bottleNames')) || {};
+        let currentMode = null;
         let html5QrCode = null;
         let isScanning = false;
 
-        // Inizializza app
+        // DATABASE BOTTIGLIE ITALIANE COMUNI
+        const ITALIAN_BOTTLES = {
+            '8001100001014': 'Campari',
+            '8000620001019': 'Aperol',
+            '8010319001013': 'Martini Rosso',
+            '8005100001012': 'Select',
+            '8032680001013': 'Luxardo Maraschino',
+            '8003840001015': 'Amaretto Disaronno',
+            '8018629001012': 'Fernet Branca',
+            '8001110001011': 'Vodka Smirnoff',
+            '8002360001013': 'Gin Tanqueray',
+            '8005100001029': 'Vermouth Carpano',
+            '8010319001020': 'Martini Bianco',
+            '8007420001016': 'Prosecco Mionetto',
+            // AGGIUNGI I TUOI CODICI QUI!
+        };
+
         document.addEventListener('DOMContentLoaded', function() {
             updateInventoryDisplay();
             document.getElementById('btnAdd').addEventListener('click', () => startScan('add'));
             document.getElementById('btnRemove').addEventListener('click', () => startScan('remove'));
         });
 
+        function getBottleName(barcode) {
+            // 1. Database italiano
+            if (ITALIAN_BOTTLES[barcode]) return ITALIAN_BOTTLES[barcode];
+            
+            // 2. Nomi salvati dall'utente
+            if (bottleNames[barcode]) return bottleNames[barcode];
+            
+            // 3. Genera nome dal codice
+            const code = barcode.slice(-8).replace(/[^a-z0-9]/gi, '');
+            return code.length > 4 ? `${code.slice(0,4)}-${code.slice(-4)}` : 'Bottiglia';
+        }
+
         async function startScan(mode) {
             currentMode = mode;
             
-            // Aggiorna pulsanti
             document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
             if (mode === 'add') {
                 document.getElementById('btnAdd').classList.add('active');
@@ -401,7 +422,6 @@
                 document.getElementById('btnRemove').classList.add('active');
             }
 
-            // Mostra scanner
             document.getElementById('scannerContainer').classList.add('active');
             document.getElementById('manualInput').classList.remove('active');
             document.getElementById('quantitySelector').classList.remove('active');
@@ -411,21 +431,22 @@
             }
 
             const config = {
-                fps: 10,
-                qrbox: { width: 250, height: 250 },
+                fps: 15,
+                qrbox: { width: 280, height: 120 },
                 aspectRatio: 1.0,
                 formatsToSupport: [
                     Html5QrcodeSupportedFormats.CODE_128,
                     Html5QrcodeSupportedFormats.EAN_13,
                     Html5QrcodeSupportedFormats.EAN_8,
                     Html5QrcodeSupportedFormats.UPC_A,
-                    Html5QrcodeSupportedFormats.UPC_E
+                    Html5QrcodeSupportedFormats.UPC_E,
+                    Html5QrcodeSupportedFormats.CODE_39
                 ]
             };
 
             try {
                 await html5QrCode.start(
-                    { facingMode: "environment" }, // Camera posteriore
+                    { facingMode: "environment" },
                     (decodedText) => {
                         onScanSuccess(decodedText);
                     },
@@ -457,7 +478,6 @@
             document.getElementById('manualInput').classList.add('active');
             document.getElementById('scanInput').focus();
             
-            // Setup input manuale
             const scanInput = document.getElementById('scanInput');
             const handleInput = () => {
                 const barcode = scanInput.value.trim();
@@ -476,9 +496,12 @@
         }
 
         function processBarcode(barcode) {
+            const name = getBottleName(barcode);
+            
             document.getElementById('currentBarcode').textContent = `Codice: ${barcode}`;
-            document.getElementById('currentItemName').textContent = 
-                currentMode === 'add' ? 'Aggiungi bottiglia' : 'Rimuovi bottiglia';
+            document.getElementById('currentItemName').textContent = name;
+            document.getElementById('itemBrand').textContent = barcode;
+            document.getElementById('itemBrand').style.display = 'block';
             
             document.getElementById('manualInput').classList.remove('active');
             document.getElementById('quantitySelector').classList.add('active');
@@ -513,6 +536,16 @@
             
             if (isAdd) {
                 inventory[barcode] = (inventory[barcode] || 0) + qty;
+                
+                // CHIEDI NOME SOLO SE NUOVO
+                if (!bottleNames[barcode]) {
+                    const proposedName = getBottleName(barcode);
+                    const name = prompt(`Nome per "${proposedName}"? (opzionale)`, proposedName);
+                    if (name && name.trim()) {
+                        bottleNames[barcode] = name.trim();
+                        localStorage.setItem('bottleNames', JSON.stringify(bottleNames));
+                    }
+                }
             } else {
                 if (inventory[barcode]) {
                     inventory[barcode] = Math.max(0, inventory[barcode] - qty);
@@ -536,6 +569,7 @@
             document.getElementById('scanInput').value = '';
             document.getElementById('customQty').style.display = 'none';
             document.getElementById('customQty').value = '';
+            document.getElementById('itemBrand').style.display = 'none';
             
             if (html5QrCode && isScanning) {
                 html5QrCode.stop().catch(console.error);
@@ -576,9 +610,11 @@
         function createItemElement(barcode, quantity) {
             const item = document.createElement('div');
             item.className = 'item';
+            
+            const displayName = bottleNames[barcode] || getBottleName(barcode);
+            
             item.onclick = () => {
                 navigator.clipboard.writeText(barcode).then(() => {
-                    // Feedback visivo
                     item.style.background = '#dbeafe';
                     setTimeout(() => {
                         item.style.background = '';
@@ -586,12 +622,10 @@
                 });
             };
             
-            const displayName = barcode.slice(-12).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-            
             item.innerHTML = `
                 <div class="item-info">
                     <h3>${displayName}</h3>
-                    <p>Codice: ${barcode}</p>
+                    <p>${barcode}</p>
                 </div>
                 <div class="item-qty">${quantity}</div>
             `;
@@ -601,6 +635,7 @@
 
         function saveInventory() {
             localStorage.setItem('mintInventory', JSON.stringify(inventory));
+            localStorage.setItem('bottleNames', JSON.stringify(bottleNames));
         }
     </script>
 </body>
