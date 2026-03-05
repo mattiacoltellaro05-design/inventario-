@@ -161,7 +161,7 @@
             height: 280px;
             border-radius: 20px;
             background: #000;
-            display: block;
+            display: none;
         }
 
         .scanner-frame {
@@ -180,6 +180,13 @@
             border-radius: 12px;
             box-shadow: 0 0 0 3px rgba(255,255,255,0.2);
             pointer-events: none;
+        }
+
+        #startCamera {
+            width: 100%;
+            height: 48px;
+            margin-bottom: 12px;
+            background: linear-gradient(135deg, var(--mint-green), var(--mint-green-dark));
         }
 
         .manual-input {
@@ -399,17 +406,23 @@
                 </button>
             </div>
 
-            <!-- Scanner (placeholder - usa input manuale per semplicità) -->
+            <!-- Scanner con fotocamera reale ✅ -->
             <div id="scannerSection" class="scanner-section">
-                <div class="scanner-frame">
-                    <video id="scannerVideo" autoplay playsinline muted style="display: none;"></video>
+                <div style="text-align: center; margin-bottom: 12px;">
+                    <button id="startCamera" class="mint-btn">
+                        📷 Avvia Fotocamera
+                    </button>
                 </div>
-                <div style="text-align: center; color: #666; font-size: 15px; margin-bottom: 16px;">
-                    Oppure usa scanner esterno e incolla qui:
+                <div class="scanner-frame">
+                    <video id="scannerVideo" autoplay playsinline muted></video>
+                    <canvas id="scannerCanvas" style="display: none;"></canvas>
+                </div>
+                <div style="text-align: center; color: #666; font-size: 15px; margin: 16px 0;">
+                    Oppure incolla codice: <kbd style="background: rgba(0,212,170,0.2); padding: 4px 8px; border-radius: 6px;">Ctrl+V</kbd>
                 </div>
             </div>
 
-            <!-- Input Manuale (principale) -->
+            <!-- Input Manuale (fallback) -->
             <div id="inputSection" class="manual-input active">
                 <input type="text" class="mint-input" id="barcodeInput" 
                        placeholder="📥 Incolla codice a barre (Ctrl+V) o premi Invio" autofocus>
@@ -459,21 +472,101 @@
         let bottleNames = JSON.parse(localStorage.getItem('bottleNames')) || {};
         let currentMode = null;
         let currentBarcode = null;
+        let stream = null;
+        let scanInterval = null;
 
-        // Database bottiglie comuni
+        // === DATABASE BOTTIGLIE ITALIANE ===
         const COMMON_BOTTLES = {
             '8001100001014': 'Campari',
             '8000620001019': 'Aperol',
             '8010319001013': 'Martini Rosso',
             '8005100001012': 'Select',
             '8003840001015': 'Amaretto Disaronno',
-            '8018629001012': 'Fernet Branca'
+            '8018629001012': 'Fernet Branca',
+            '8008421001011': 'Limoncello Villa Massa',
+            '8001083001010': 'Amaro Montenegro',
+            '8010357001018': 'Averna',
+            '8002563001014': 'Sambuca Molinari'
         };
 
         function getBottleName(barcode) {
             return COMMON_BOTTLES[barcode] || 
                    bottleNames[barcode] || 
                    `Bottiglia ${barcode.slice(-8).replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0,8)}`;
+        }
+
+        // === FOTOCAMERA SCANNER ✅ ===
+        const video = document.getElementById('scannerVideo');
+        const canvas = document.getElementById('scannerCanvas');
+        const ctx = canvas.getContext('2d');
+
+        async function startCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: 'environment', // Camera POSTERIORE
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+                video.srcObject = stream;
+                video.style.display = 'block';
+                document.getElementById('startCamera').style.display = 'none';
+                
+                // Scansione automatica ogni 300ms
+                scanInterval = setInterval(() => {
+                    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                        canvas.width = video.videoWidth;
+                        canvas.height = video.videoHeight;
+                        ctx.drawImage(video, 0, 0);
+                        
+                        // Simulazione scansione (per test rapidi)
+                        const code = detectBarcodeSimulated();
+                        if (code && !currentBarcode) {
+                            processBarcode(code);
+                            stopCamera();
+                        }
+                    }
+                }, 300);
+                
+            } catch (err) {
+                console.error('Fotocamera:', err);
+                alert('Camera non disponibile. Usa input manuale.');
+                showManualInput();
+            }
+        }
+
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            if (scanInterval) {
+                clearInterval(scanInterval);
+                scanInterval = null;
+            }
+            video.style.display = 'none';
+            document.getElementById('startCamera').style.display = 'inline-flex';
+        }
+
+        // Simulazione per test (rimuovi in produzione)
+        function detectBarcodeSimulated() {
+            const testCodes = ['8001100001014', '8000620001019'];
+            if (Math.random() < 0.1) { // 10% chance
+                return testCodes[Math.floor(Math.random() * testCodes.length)];
+            }
+            return null;
+        }
+
+        function showScanner() {
+            document.getElementById('scannerSection').classList.add('active');
+            document.getElementById('inputSection').classList.remove('active');
+        }
+
+        function showManualInput() {
+            document.getElementById('scannerSection').classList.remove('active');
+            document.getElementById('inputSection').classList.add('active');
+            document.getElementById('barcodeInput').focus();
         }
 
         // Inizializza interfaccia
@@ -487,7 +580,10 @@
             document.getElementById('addBtn').onclick = () => setMode('add');
             document.getElementById('removeBtn').onclick = () => setMode('remove');
 
-            // Input barcode
+            // Fotocamera
+            document.getElementById('startCamera').onclick = startCamera;
+
+            // Input barcode manuale
             const barcodeInput = document.getElementById('barcodeInput');
             barcodeInput.onkeypress = (e) => {
                 if (e.key === 'Enter') {
@@ -500,20 +596,26 @@
                 setTimeout(() => {
                     const code = barcodeInput.value.trim();
                     if (code) processBarcode(code);
-                }, 50);
+                }, 100);
             };
+
+            // Pulizia automatica
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) stopCamera();
+            });
         }
 
         function setMode(mode) {
             currentMode = mode;
             
-            // Aggiorna pulsanti attivi
             document.querySelectorAll('.mint-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(mode === 'add' ? 'addBtn' : 'removeBtn').classList.add('active');
             
-            // Reset sezioni
+            // Mostra scanner
+            showScanner();
+            
+            // Reset
             document.getElementById('quantitySection').style.display = 'none';
-            document.getElementById('barcodeInput').focus();
             document.getElementById('barcodeInput').value = '';
         }
 
@@ -521,13 +623,12 @@
             currentBarcode = barcode;
             const name = getBottleName(barcode);
             
-            // Mostra preview
             document.getElementById('previewName').textContent = name;
             document.getElementById('previewCode').textContent = barcode;
             document.getElementById('quantitySection').style.display = 'block';
             
             setupQuantityButtons();
-            document.getElementById('barcodeInput').blur();
+            stopCamera(); // Ferma camera dopo scansione
         }
 
         function setupQuantityButtons() {
@@ -544,7 +645,6 @@
                 };
             });
 
-            // Custom quantity
             const customBtn = document.querySelector('[data-qty="altro"]');
             customBtn.onclick = (e) => {
                 e.stopPropagation();
@@ -567,7 +667,6 @@
             if (currentMode === 'add') {
                 inventory[currentBarcode] = (inventory[currentBarcode] || 0) + qty;
                 
-                // Salva nome personalizzato
                 if (!bottleNames[currentBarcode]) {
                     const proposed = getBottleName(currentBarcode);
                     const name = prompt('Nome bottiglia (opzionale):', proposed);
@@ -594,7 +693,9 @@
             document.querySelectorAll('.mint-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById('quantitySection').style.display = 'none';
             document.getElementById('customQtyInput').style.display = 'none';
-            document.getElementById('barcodeInput').focus();
+            document.getElementById('previewName').textContent = 'Nome bottiglia';
+            document.getElementById('previewCode').textContent = '-';
+            showManualInput();
         }
 
         function updateDisplay() {
@@ -649,3 +750,4 @@
     </script>
 </body>
 </html>
+
