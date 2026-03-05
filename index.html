@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍸 Mint Inventory - Yuka Workflow</title>
+    <title>🍸 Mint Inventory PRO</title>
+    <script src="https://unpkg.com/@zxing/library@0.20.1/umd/index.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -28,7 +29,7 @@
         }
 
         .header {
-            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
             color: white;
             padding: 30px 24px;
             text-align: center;
@@ -45,29 +46,11 @@
             font-size: 16px;
         }
 
-        .workflow {
-            background: rgba(16, 185, 129, 0.1);
-            border: 2px dashed #10b981;
-            border-radius: 16px;
-            padding: 20px;
-            margin: 24px;
-            text-align: center;
-        }
-
-        .workflow-step {
-            background: white;
-            padding: 16px;
-            border-radius: 12px;
-            margin: 8px 0;
-            font-weight: 600;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-
         .inventory-section {
             padding: 32px 24px;
         }
 
-        .mode-buttons {
+        .action-buttons {
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 16px;
@@ -111,50 +94,80 @@
             box-shadow: 0 10px 25px rgba(0,0,0,0.2);
         }
 
-        .barcode-input {
-            width: 100%;
-            padding: 24px 20px;
-            border: 3px dashed #d1d5db;
-            border-radius: 20px;
-            text-align: center;
-            font-size: 18px;
-            font-weight: 600;
-            color: #374151;
-            background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+        .scanner-container {
+            display: none;
             margin-bottom: 20px;
+        }
+
+        .scanner-container.active {
+            display: block;
+        }
+
+        #scannerVideo {
+            width: 100%;
+            height: 300px;
+            border-radius: 16px;
+            background: #000;
+        }
+
+        .scanner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 49%, rgba(79, 172, 254, 0.3) 50%, rgba(79, 172, 254, 0.3) 51%, transparent 52%);
+            background-size: 100% 4px;
+            background-repeat: repeat-y;
+            animation: scan 2s linear infinite;
+            pointer-events: none;
+            border-radius: 16px;
+        }
+
+        @keyframes scan {
+            0% { background-position: 0 100%; }
+            100% { background-position: 0 0; }
+        }
+
+        .scan-instructions {
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 12px;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 12px;
+        }
+
+        .manual-input {
+            display: none;
+            margin-bottom: 20px;
+        }
+
+        .scan-input {
+            width: 100%;
+            padding: 20px;
+            border: 2px dashed #e0e6ed;
+            border-radius: 16px;
+            text-align: center;
+            font-size: 16px;
+            color: #64748b;
+            background: #f8fafc;
             transition: all 0.3s ease;
-            font-family: monospace;
-        }
-
-        .barcode-input:focus {
-            outline: none;
-            border-color: #10b981;
-            background: white;
-            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.1);
-            transform: scale(1.02);
-        }
-
-        .barcode-input::placeholder {
-            color: #9ca3af;
-            font-weight: 400;
         }
 
         .quantity-selector {
             display: none;
             margin: 20px 0;
-            padding: 24px;
-            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-            border-radius: 20px;
-            border: 2px solid #bbf7d0;
+            animation: slideIn 0.3s ease;
         }
 
         .quantity-selector.active {
             display: block;
-            animation: slideIn 0.4s ease;
         }
 
         @keyframes slideIn {
-            from { opacity: 0; transform: translateY(20px); }
+            from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
         }
 
@@ -167,47 +180,19 @@
         }
 
         .qty-btn {
-            padding: 16px 24px;
-            border: 2px solid #10b981;
+            padding: 12px 20px;
+            border: 2px solid #e2e8f0;
             background: white;
             border-radius: 12px;
             cursor: pointer;
             transition: all 0.2s ease;
-            font-weight: 700;
-            font-size: 16px;
-            min-width: 70px;
+            font-weight: 600;
         }
 
-        .qty-btn:hover, .qty-btn.active {
-            background: #10b981;
+        .qty-btn:hover, .qty-btn.selected {
+            background: #4facfe;
             color: white;
-            transform: translateY(-2px);
-        }
-
-        .item-preview {
-            background: white;
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 20px;
-            text-align: center;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
-        }
-
-        .item-name {
-            font-size: 24px;
-            font-weight: 700;
-            color: #1f2937;
-            margin-bottom: 8px;
-        }
-
-        .item-code {
-            font-size: 14px;
-            color: #6b7280;
-            font-family: monospace;
-            background: #f3f4f6;
-            padding: 4px 12px;
-            border-radius: 20px;
-            display: inline-block;
+            border-color: #4facfe;
         }
 
         .inventory-list {
@@ -221,7 +206,7 @@
             justify-content: space-between;
             align-items: center;
             padding: 20px;
-            border: 1px solid #d1d5db;
+            border: 1px solid #e2e8f0;
             border-radius: 16px;
             margin-bottom: 12px;
             background: white;
@@ -231,7 +216,7 @@
 
         .item:hover {
             transform: translateX(4px);
-            box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
         }
 
         .item-info h3 {
@@ -244,15 +229,20 @@
         .item-info p {
             color: #64748b;
             font-size: 14px;
-            font-family: monospace;
         }
 
         .item-qty {
             font-size: 24px;
             font-weight: 700;
             color: #10b981;
-            min-width: 60px;
+            min-width: 50px;
             text-align: center;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 24px;
+            color: #94a3b8;
         }
 
         .stats {
@@ -260,7 +250,7 @@
             grid-template-columns: 1fr 1fr;
             gap: 16px;
             padding: 24px;
-            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
             border-radius: 16px;
             margin-top: 16px;
         }
@@ -276,45 +266,55 @@
             color: #10b981;
         }
 
-        .empty-state {
-            text-align: center;
-            padding: 60px 24px;
-            color: #94a3b8;
-        }
-
-        @media (max-width: 480px) {
-            .mode-buttons { grid-template-columns: 1fr; }
-            .qty-group { flex-direction: column; }
+        .stat-label {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 4px;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🍸 Mint Inventory</h1>
-            <p>Perfetto con <strong>Yuka Scanner</strong></p>
-        </div>
-
-        <div class="workflow">
-            <div class="workflow-step">📱 1. Apri <strong>Yuka</strong></div>
-            <div class="workflow-step">📷 2. Scannerizza bottiglia</div>
-            <div class="workflow-step">📋 3. <strong>Copia codice</strong></div>
-            <div class="workflow-step">⏎ 4. <strong>Incolla + Invio</strong></div>
+            <h1>🍸 Mint Inventory PRO</h1>
+            <p>Scannerizza direttamente con la camera</p>
         </div>
 
         <div class="inventory-section">
-            <div class="mode-buttons">
-                <button class="btn btn-add" id="addBtn">➕ Aggiungi</button>
-                <button class="btn btn-remove" id="removeBtn">➖ Finita</button>
+            <div class="action-buttons">
+                <button class="btn btn-add" id="btnAdd">
+                    📷 Aggiungi
+                </button>
+                <button class="btn btn-remove" id="btnRemove">
+                    📷 Finita
+                </button>
             </div>
 
-            <input type="text" class="barcode-input" id="barcodeInput" 
-                   placeholder="📋 Incolla da Yuka (Ctrl+V + Invio)" autofocus>
+            <!-- ZXing Scanner -->
+            <div id="scannerContainer" class="scanner-container">
+                <div style="position: relative;">
+                    <video id="scannerVideo" autoplay playsinline muted></video>
+                    <div class="scanner-overlay"></div>
+                </div>
+                <div class="scan-instructions">
+                    Punta la camera al codice a barre della bottiglia
+                </div>
+                <button class="btn" onclick="switchToManual()" style="width: 100%; margin-top: 12px; background: #6b7280; color: white;">
+                    ⌨️ Inserisci manualmente
+                </button>
+            </div>
 
+            <!-- Manual Input -->
+            <div id="manualInput" class="manual-input">
+                <input type="text" class="scan-input" id="scanInput" 
+                       placeholder="Incolla codice a barre o premi Invio..." autocomplete="off">
+            </div>
+
+            <!-- Quantity Selector -->
             <div id="quantitySelector" class="quantity-selector">
-                <div class="item-preview">
-                    <div class="item-name" id="previewName">Bottiglia</div>
-                    <div class="item-code" id="previewCode"></div>
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h3 id="currentItemName">Bottiglia</h3>
+                    <p id="currentBarcode"></p>
                 </div>
                 <div class="qty-group">
                     <button class="qty-btn" data-qty="1">1</button>
@@ -324,27 +324,27 @@
                     <button class="qty-btn" data-qty="altro">Altro</button>
                 </div>
                 <div style="text-align: center;">
-                    <input type="number" id="customQty" class="barcode-input" 
+                    <input type="number" id="customQty" class="scan-input" 
                            placeholder="Quantità personalizzata" style="width: 200px; display: none;">
                 </div>
             </div>
 
             <div id="inventoryList" class="inventory-list"></div>
             
-            <div id="emptyState" class="empty-state" style="display: none;">
+            <div id="emptyState" class="empty-state">
                 <div style="font-size: 64px; margin-bottom: 20px;">🍾</div>
-                <h3>Il tuo caveau è vuoto</h3>
-                <p>Scannerizza la prima bottiglia con Yuka!</p>
+                <h3>Nessuna bottiglia in magazzino</h3>
+                <p>Clicca "Aggiungi" per scansionare la prima</p>
             </div>
 
             <div class="stats" id="stats" style="display: none;">
                 <div class="stat">
                     <div class="stat-number" id="totalItems">0</div>
-                    <div>Bottiglie totali</div>
+                    <div class="stat-label">Bottiglie totali</div>
                 </div>
                 <div class="stat">
                     <div class="stat-number" id="totalTypes">0</div>
-                    <div>Tipi diversi</div>
+                    <div class="stat-label">Tipi diversi</div>
                 </div>
             </div>
         </div>
@@ -355,58 +355,123 @@
         let bottleNames = JSON.parse(localStorage.getItem('bottleNames')) || {};
         let currentMode = null;
         let currentBarcode = null;
+        let codeReader = null;
+        let videoStream = null;
+        let isScanning = false;
 
-        // Database bottiglie comuni
-        const BOTTLES = {
+        // Database bottiglie italiane
+        const ITALIAN_BOTTLES = {
             '8001100001014': 'Campari',
             '8000620001019': 'Aperol',
             '8010319001013': 'Martini Rosso',
             '8005100001012': 'Select',
+            '8032680001013': 'Luxardo Maraschino',
             '8003840001015': 'Amaretto Disaronno',
-            '8018629001012': 'Fernet Branca'
+            '8018629001012': 'Fernet Branca',
+            '8001110001011': 'Vodka Smirnoff',
+            '8002360001013': 'Gin Tanqueray'
         };
 
         function getBottleName(barcode) {
-            return BOTTLES[barcode] || bottleNames[barcode] || 
-                   `Bottiglia ${barcode.slice(-8).replace(/[^a-z0-9]/gi, '').toUpperCase().slice(0,8)}`;
+            if (ITALIAN_BOTTLES[barcode]) return ITALIAN_BOTTLES[barcode];
+            if (bottleNames[barcode]) return bottleNames[barcode];
+            
+            const code = barcode.slice(-8).replace(/[^a-z0-9]/gi, '');
+            return code.length > 4 ? `${code.slice(0,4)}-${code.slice(-4)}` : 'Bottiglia';
         }
 
         // Inizializzazione
-        document.addEventListener('DOMContentLoaded', () => {
-            updateDisplay();
+        document.addEventListener('DOMContentLoaded', function() {
+            updateInventoryDisplay();
             
-            document.getElementById('addBtn').onclick = () => setMode('add');
-            document.getElementById('removeBtn').onclick = () => setMode('remove');
-            
-            setupBarcodeInput();
+            document.getElementById('btnAdd').onclick = () => startScan('add');
+            document.getElementById('btnRemove').onclick = () => startScan('remove');
         });
 
-        function setMode(mode) {
+        async function startScan(mode) {
             currentMode = mode;
-            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(mode === 'add' ? 'addBtn' : 'removeBtn').classList.add('active');
             
-            document.getElementById('quantitySelector').style.display = 'none';
-            document.getElementById('barcodeInput').focus();
+            // Aggiorna UI
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(mode === 'add' ? 'btnAdd' : 'btnRemove').classList.add('active');
+            
+            document.getElementById('scannerContainer').classList.add('active');
+            document.getElementById('manualInput').classList.remove('active');
+            document.getElementById('quantitySelector').classList.remove('active');
+
+            try {
+                // Avvia camera
+                codeReader = new ZXing.BrowserMultiFormatReader();
+                
+                const video = document.getElementById('scannerVideo');
+                
+                // Configurazione ZXing ottimizzata per barcode
+                const hints = new Map();
+                hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+                hints.set(ZXing.DecodeHintType.POSSIBLE_FORMATS, [
+                    ZXing.BarcodeFormat.EAN_13,
+                    ZXing.BarcodeFormat.EAN_8,
+                    ZXing.BarcodeFormat.CODE_128,
+                    ZXing.BarcodeFormat.UPC_A,
+                    ZXing.BarcodeFormat.UPC_E
+                ]);
+
+                await codeReader.decodeFromVideoDevice(
+                    undefined, // camera di default (posteriore su mobile)
+                    video,
+                    (result, err, controls) => {
+                        if (result) {
+                            stopScan();
+                            processBarcode(result.text);
+                        }
+                        if (err && !(err instanceof ZXing.NotFoundException)) {
+                            console.error(err);
+                        }
+                    },
+                    hints
+                );
+                
+                isScanning = true;
+            } catch (err) {
+                console.log('Camera non disponibile, usa input manuale');
+                switchToManual();
+            }
         }
 
-        function setupBarcodeInput() {
-            const input = document.getElementById('barcodeInput');
+        function stopScan() {
+            if (codeReader) {
+                codeReader.reset();
+                codeReader = null;
+            }
+            if (videoStream) {
+                videoStream.getTracks().forEach(track => track.stop());
+                videoStream = null;
+            }
+            isScanning = false;
+        }
+
+        function switchToManual() {
+            document.getElementById('scannerContainer').classList.remove('active');
+            document.getElementById('manualInput').classList.add('active');
+            const input = document.getElementById('scanInput');
+            input.focus();
             
             input.onkeypress = (e) => {
                 if (e.key === 'Enter') {
                     const barcode = input.value.trim();
                     if (barcode) {
                         processBarcode(barcode);
+                        input.value = '';
                     }
                 }
             };
-
+            
             input.onpaste = () => {
                 setTimeout(() => {
                     const barcode = input.value.trim();
                     if (barcode) {
                         processBarcode(barcode);
+                        input.value = '';
                     }
                 }, 100);
             };
@@ -416,21 +481,23 @@
             currentBarcode = barcode;
             const name = getBottleName(barcode);
             
-            document.getElementById('previewName').textContent = name;
-            document.getElementById('previewCode').textContent = barcode;
+            document.getElementById('currentItemName').textContent = name;
+            document.getElementById('currentBarcode').textContent = `Codice: ${barcode}`;
+            
+            document.getElementById('manualInput').classList.remove('active');
             document.getElementById('quantitySelector').classList.add('active');
             
             setupQuantityButtons();
-            document.getElementById('barcodeInput').value = '';
         }
 
         function setupQuantityButtons() {
             document.querySelectorAll('.qty-btn').forEach(btn => {
-                btn.classList.remove('active');
-                btn.onclick = () => {
-                    const qty = btn.dataset.qty === 'altro' ? 
-                        (document.getElementById('customQty').value || 1) : btn.dataset.qty;
-                    processQuantity(parseInt(qty));
+                btn.classList.remove('selected');
+                btn.onclick = function() {
+                    const qty = this.dataset.qty === 'altro' ? 
+                        (parseInt(document.getElementById('customQty').value) || 1) : 
+                        parseInt(this.dataset.qty);
+                    processQuantity(qty);
                 };
             });
 
@@ -451,8 +518,10 @@
             if (currentMode === 'add') {
                 inventory[currentBarcode] = (inventory[currentBarcode] || 0) + qty;
                 
+                // Salva nome se nuovo
                 if (!bottleNames[currentBarcode]) {
-                    const name = prompt('Nome bottiglia?', getBottleName(currentBarcode));
+                    const proposedName = getBottleName(currentBarcode);
+                    const name = prompt(`Nome per "${proposedName}"? (opzionale)`, proposedName);
                     if (name && name.trim()) {
                         bottleNames[currentBarcode] = name.trim();
                     }
@@ -465,9 +534,9 @@
                     }
                 }
             }
-
-            saveData();
-            updateDisplay();
+            
+            saveInventory();
+            updateInventoryDisplay();
             resetUI();
         }
 
@@ -475,62 +544,71 @@
             currentMode = null;
             currentBarcode = null;
             document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('scannerContainer').classList.remove('active');
+            document.getElementById('manualInput').classList.remove('active');
             document.getElementById('quantitySelector').classList.remove('active');
+            document.getElementById('scanInput').value = '';
             document.getElementById('customQty').style.display = 'none';
-            document.getElementById('barcodeInput').focus();
+            document.getElementById('customQty').value = '';
+            
+            stopScan();
         }
 
-        function updateDisplay() {
+        function updateInventoryDisplay() {
             const list = document.getElementById('inventoryList');
-            const empty = document.getElementById('emptyState');
+            const emptyState = document.getElementById('emptyState');
             const stats = document.getElementById('stats');
             
             list.innerHTML = '';
             let totalItems = 0;
             let totalTypes = 0;
-
-            for (let code in inventory) {
-                if (inventory[code] > 0) {
-                    totalItems += inventory[code];
+            
+            for (let barcode in inventory) {
+                if (inventory[barcode] > 0) {
+                    totalItems += inventory[barcode];
                     totalTypes++;
-                    const item = createItem(code, inventory[code]);
+                    const item = createItemElement(barcode, inventory[barcode]);
                     list.appendChild(item);
                 }
             }
-
+            
             document.getElementById('totalItems').textContent = totalItems;
             document.getElementById('totalTypes').textContent = totalTypes;
-
+            
             if (totalItems === 0) {
-                empty.style.display = 'block';
+                emptyState.style.display = 'block';
                 stats.style.display = 'none';
             } else {
-                empty.style.display = 'none';
+                emptyState.style.display = 'none';
                 stats.style.display = 'grid';
             }
         }
 
-        function createItem(code, qty) {
-            const div = document.createElement('div');
-            div.className = 'item';
-            div.onclick = () => {
-                navigator.clipboard.writeText(code);
-                div.style.background = '#dbeafe';
-                setTimeout(() => div.style.background = '', 1000);
+        function createItemElement(barcode, quantity) {
+            const item = document.createElement('div');
+            item.className = 'item';
+            
+            item.onclick = () => {
+                navigator.clipboard.writeText(barcode).then(() => {
+                    item.style.background = '#dbeafe';
+                    setTimeout(() => item.style.background = '', 1000);
+                });
             };
-
-            div.innerHTML = `
+            
+            const displayName = bottleNames[barcode] || getBottleName(barcode);
+            
+            item.innerHTML = `
                 <div class="item-info">
-                    <h3>${getBottleName(code)}</h3>
-                    <p>${code}</p>
+                    <h3>${displayName}</h3>
+                    <p>${barcode}</p>
                 </div>
-                <div class="item-qty">${qty}</div>
+                <div class="item-qty">${quantity}</div>
             `;
-
-            return div;
+            
+            return item;
         }
 
-        function saveData() {
+        function saveInventory() {
             localStorage.setItem('mintInventory', JSON.stringify(inventory));
             localStorage.setItem('bottleNames', JSON.stringify(bottleNames));
         }
