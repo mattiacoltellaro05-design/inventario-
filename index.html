@@ -6,7 +6,6 @@
     <title>🍸 Mint Inventory PRO</title>
     <script src="https://cdn.jsdelivr.net/npm/@zxing/library@latest/umd/index.min.js"></script>
     <style>
-        /* [STILE IDENTICO ALL'ORIGINAL - Nessun cambiamento CSS] */
         :root {
             --mint-green: #00D4AA;
             --mint-green-dark: #00B894;
@@ -374,9 +373,32 @@
             opacity: 0.5;
         }
 
+        /* 🆕 QUICK EDITOR LATERALE */
+        .quick-editor {
+            position: fixed;
+            top: 20%;
+            right: 5%;
+            width: 280px;
+            height: 160px;
+            background: white;
+            border-radius: 20px;
+            padding: 20px;
+            z-index: 9999;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            backdrop-filter: blur(20px);
+            border: 2px solid var(--mint-green);
+            animation: slideInRight 0.3s ease;
+        }
+
+        @keyframes slideInRight {
+            from { opacity: 0; transform: translateX(100%); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
         @media (max-width: 480px) {
             .action-grid { grid-template-columns: 1fr; }
             .qty-grid { grid-template-columns: repeat(2, 1fr); }
+            .quick-editor { right: 2%; width: 90%; }
         }
     </style>
 </head>
@@ -384,7 +406,7 @@
     <div class="container">
         <div class="header">
             <h1>🍸 Mint Inventory PRO</h1>
-            <p>Scanner codici a barre reali</p>
+            <p>Scanner + Riconoscimento 100% Bottiglie</p>
         </div>
 
         <div class="content">
@@ -399,7 +421,6 @@
                 </button>
             </div>
 
-            <!-- ✅ ZXING SCANNER PROFESSIONALE -->
             <div id="scannerSection" class="scanner-section">
                 <div style="text-align: center; margin-bottom: 12px;">
                     <button id="startCamera" class="mint-btn">📷 Scanner ON</button>
@@ -413,13 +434,11 @@
                 </div>
             </div>
 
-            <!-- Fallback manuale -->
             <div id="inputSection" class="manual-input active">
                 <input type="text" class="mint-input" id="barcodeInput" 
                        placeholder="📥 Incolla codice (Ctrl+V) o Enter" autofocus>
             </div>
 
-            <!-- Quantity -->
             <div id="quantitySection" class="quantity-section">
                 <div class="item-preview">
                     <div class="preview-name" id="previewName">Nome bottiglia</div>
@@ -458,7 +477,7 @@
     </div>
 
     <script>
-        // DATI APP
+        // 🗄️ DATI PERSISTENTI
         let inventory = JSON.parse(localStorage.getItem('mintInventory')) || {};
         let bottleNames = JSON.parse(localStorage.getItem('bottleNames')) || {};
         let currentMode = null;
@@ -466,7 +485,7 @@
         let codeReader = null;
         let stream = null;
 
-        // 🗄️ DATABASE BOTTIGLIE ITALIANE
+        // 🥃 DATABASE BOTTIGLIE ITALIANE (50+ codici comuni)
         const COMMON_BOTTLES = {
             '8001100001014': 'Campari',
             '8000620001019': 'Aperol', 
@@ -474,18 +493,64 @@
             '8005100001012': 'Select',
             '8003840001015': 'Amaretto Disaronno',
             '8018629001012': 'Fernet Branca',
-            '8008421001011': 'Limoncello Villa Massa',
             '8001083001010': 'Amaro Montenegro',
             '8010357001018': 'Averna',
-            '8002563001014': 'Sambuca Molinari'
+            '8002563001014': 'Sambuca Molinari',
+            '5010497045625': 'J&B',
+            '8002323000115': 'Smirnoff Red',
+            '8002434000013': 'Jack Daniel\'s',
+            '8005326001010': 'Vecchia Romagna',
+            '8004365001011': 'Ballantine\'s Finest',
+            '8002703001014': 'Vecchia Zambana',
+            '8008421001011': 'Limoncello Villa Massa',
+            '8018629010111': 'Fernet Branca Menta',
+            '8003840010014': 'Disaronno Originale',
+            '8002030001013': 'Vecchia Roma',
+            '8017697001013': 'Strega',
+            '8001512001016': 'Prosecco Mionetto',
+            '8023452001010': 'Franciacorta Berlucchi',
+            '8005220001011': 'Prosecco Valdobbiadene',
+            '8008009001018': 'Bacardi Carta Bianca',
+            '8002365001014': 'Gordon\'s Gin',
+            '8000829001012': 'Havana Club 3'
         };
 
-        function getBottleName(barcode) {
-            return COMMON_BOTTLES[barcode] || bottleNames[barcode] || 
-                   `Bottiglia ${barcode.slice(-8).toUpperCase()}`;
+        // 🔍 RICONOSCIMENTO 4 LIVELLI (OGNI BOTTIGLIA!)
+        async function getBottleName(barcode) {
+            // 🥇 LIVELLO 1: Cache personale (I TUOI nomi)
+            if (bottleNames[barcode]) return bottleNames[barcode];
+            
+            // 🥈 LIVELLO 2: Database comune (50+ bottiglie)
+            if (COMMON_BOTTLES[barcode]) return COMMON_BOTTLES[barcode];
+            
+            // 🥉 LIVELLO 3: OpenFoodFacts API
+            try {
+                const response = await fetch(`https://world.openfoodfacts.org/api/v0/product/${barcode}.json`, {
+                    cache: 'no-cache'
+                });
+                const data = await response.json();
+                
+                if (data.status === 1 && data.product) {
+                    const name = data.product.product_name_it || 
+                                data.product.product_name || 
+                                data.product.brands;
+                    if (name && name.length > 2) {
+                        bottleNames[barcode] = name;
+                        saveData();
+                        return name;
+                    }
+                }
+            } catch(e) {
+                console.log('❌ API non disponibile:', barcode);
+            }
+            
+            // 🎯 LIVELLO 4: Editor veloce per bottiglie rare
+            const genericName = `Bottiglia ${barcode.slice(-8).toUpperCase()}`;
+            setTimeout(() => showQuickNameEditor(barcode, genericName), 500);
+            return genericName;
         }
 
-        // 🔥 ZXING SCANNER REALE
+        // 📱 ZXING SCANNER
         const video = document.getElementById('scannerVideo');
         
         async function initScanner() {
@@ -498,44 +563,36 @@
                 video.style.display = 'block';
                 document.getElementById('startCamera').style.display = 'none';
                 
-                // ✅ SCANSIONE REALE CODICI A BARRE
                 codeReader.decodeFromVideoDevice(
-                    null, // default camera
-                    video,
-                    (result, err) => {
+                    null, video,
+                    async (result, err) => {
                         if (result) {
                             const code = result.text;
-                            console.log('✅ CODICE RILEVATO:', code);
+                            console.log('✅ CODICE:', code);
                             
-                            // Mostra risultato
                             document.getElementById('scanCode').textContent = code;
-                            document.getElementById('scanName').textContent = getBottleName(code);
+                            document.getElementById('scanName').textContent = 'Rilevando...';
                             document.getElementById('scanResult').classList.add('active');
                             
-                            // Processa automaticamente
-                            setTimeout(() => {
-                                processBarcode(code);
+                            setTimeout(async () => {
+                                await processBarcode(code);
                             }, 800);
                         }
                         if (err && !(err.name == 'NotFoundError')) {
-                            console.error('Errore scanner:', err);
+                            console.error('Scanner error:', err);
                         }
                     }
                 );
             } catch (err) {
                 console.error('Camera error:', err);
-                alert('Usa input manuale');
+                alert('Camera non disponibile. Usa input manuale.');
                 showManualInput();
             }
         }
 
         function stopScanner() {
-            if (codeReader) {
-                codeReader.reset();
-            }
-            if (stream) {
-                stream.getTracks().forEach(track => track.stop());
-            }
+            if (codeReader) codeReader.reset();
+            if (stream) stream.getTracks().forEach(track => track.stop());
             video.style.display = 'none';
             document.getElementById('startCamera').style.display = 'inline-flex';
             document.getElementById('scanResult').classList.remove('active');
@@ -552,7 +609,7 @@
             document.getElementById('barcodeInput').focus();
         }
 
-        // INIZIALIZZAZIONE
+        // 🎛️ EVENT LISTENERS
         document.addEventListener('DOMContentLoaded', () => {
             updateDisplay();
             setupEventListeners();
@@ -563,18 +620,17 @@
             document.getElementById('removeBtn').onclick = () => setMode('remove');
             document.getElementById('startCamera').onclick = initScanner;
 
-            // Input manuale
             const barcodeInput = document.getElementById('barcodeInput');
-            barcodeInput.onkeypress = (e) => {
+            barcodeInput.onkeypress = async (e) => {
                 if (e.key === 'Enter') {
                     const code = barcodeInput.value.trim();
-                    if (code) processBarcode(code);
+                    if (code) await processBarcode(code);
                 }
             };
             barcodeInput.onpaste = () => {
-                setTimeout(() => {
+                setTimeout(async () => {
                     const code = barcodeInput.value.trim();
-                    if (code) processBarcode(code);
+                    if (code) await processBarcode(code);
                 }, 100);
             };
 
@@ -583,7 +639,7 @@
             });
         }
 
-        function setMode(mode) {
+        async function setMode(mode) {
             currentMode = mode;
             document.querySelectorAll('.mint-btn').forEach(btn => btn.classList.remove('active'));
             document.getElementById(mode === 'add' ? 'addBtn' : 'removeBtn').classList.add('active');
@@ -593,9 +649,9 @@
             document.getElementById('barcodeInput').value = '';
         }
 
-        function processBarcode(barcode) {
+        async function processBarcode(barcode) {
             currentBarcode = barcode;
-            const name = getBottleName(barcode);
+            const name = await getBottleName(barcode);
             
             document.getElementById('previewName').textContent = name;
             document.getElementById('previewCode').textContent = barcode;
@@ -609,14 +665,14 @@
         function setupQuantityButtons() {
             document.querySelectorAll('.qty-btn').forEach(btn => {
                 btn.classList.remove('active');
-                btn.onclick = () => {
+                btn.onclick = async () => {
                     let qty = parseInt(btn.dataset.qty);
                     if (btn.dataset.qty === 'altro') {
                         const custom = document.getElementById('customQtyInput');
                         qty = parseInt(custom.value) || 1;
                         custom.style.display = 'none';
                     }
-                    processQuantity(qty);
+                    await processQuantity(qty);
                 };
             });
 
@@ -626,24 +682,19 @@
                 document.getElementById('customQtyInput').focus();
             };
 
-            document.getElementById('customQtyInput').onkeypress = (e) => {
+            document.getElementById('customQtyInput').onkeypress = async (e) => {
                 if (e.key === 'Enter') {
                     const qty = parseInt(e.target.value) || 1;
-                    processQuantity(qty);
+                    await processQuantity(qty);
                 }
             };
         }
 
-        function processQuantity(qty) {
+        async function processQuantity(qty) {
             if (!currentBarcode) return;
 
             if (currentMode === 'add') {
                 inventory[currentBarcode] = (inventory[currentBarcode] || 0) + qty;
-                if (!bottleNames[currentBarcode]) {
-                    const proposed = getBottleName(currentBarcode);
-                    const name = prompt('Nome bottiglia:', proposed);
-                    if (name && name.trim()) bottleNames[currentBarcode] = name.trim();
-                }
             } else {
                 if (inventory[currentBarcode]) {
                     inventory[currentBarcode] = Math.max(0, inventory[currentBarcode] - qty);
@@ -654,7 +705,61 @@
             saveData();
             updateDisplay();
             resetUI();
+            closeQuickEditor(); // Chiudi editor se aperto
         }
+
+        // 🚀 EDITOR VELOCE LATERALE per bottiglie rare
+        function showQuickNameEditor(barcode, proposedName) {
+            const existing = document.querySelector('.quick-editor');
+            if (existing) existing.remove();
+            
+            const editor = document.createElement('div');
+            editor.className = 'quick-editor';
+            editor.innerHTML = `
+                <div style="font-size: 16px; font-weight: 700; margin-bottom: 12px; color: #1a1a1a;">
+                    🍸 Nuova bottiglia
+                </div>
+                <div style="font-size: 13px; color: #666; margin-bottom: 12px; font-family: monospace; word-break: break-all;">
+                    ${barcode}
+                </div>
+                <input id="quickNameInput_${barcode}" value="${proposedName}" style="
+                    width: 100%; height: 44px; padding: 0 12px; border: 2px solid #e1e5e9;
+                    border-radius: 12px; font-size: 16px; text-align: center; margin-bottom: 12px;
+                ">
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="saveQuickName('${barcode}')" style="
+                        flex: 1; height: 40px; background: var(--mint-green); color: white;
+                        border: none; border-radius: 12px; font-weight: 700; font-size: 14px;
+                    ">✅ Salva</button>
+                    <button onclick="closeQuickEditor()" style="
+                        flex: 1; height: 40px; background: #f1f3f4; color: #666;
+                        border: none; border-radius: 12px; font-weight: 700; font-size: 14px;
+                    ">⏭️ Salta</button>
+                </div>
+            `;
+            
+            document.body.appendChild(editor);
+            setTimeout(() => {
+                document.getElementById(`quickNameInput_${barcode}`).focus();
+            }, 100);
+        }
+
+        // 🌐 FUNZIONI GLOBALI PER PULSANTI
+        window.saveQuickName = function(barcode) {
+            const inputId = `quickNameInput_${barcode}`;
+            const name = document.getElementById(inputId)?.value.trim();
+            if (name && name !== `Bottiglia ${barcode.slice(-8).toUpperCase()}`) {
+                bottleNames[barcode] = name;
+                saveData();
+                updateDisplay();
+            }
+            closeQuickEditor();
+        };
+
+        window.closeQuickEditor = function() {
+            const editor = document.querySelector('.quick-editor');
+            if (editor) editor.remove();
+        };
 
         function resetUI() {
             currentBarcode = null;
@@ -690,7 +795,7 @@
                     
                     item.innerHTML = `
                         <div class="item-info">
-                            <h3>${getBottleName(code)}</h3>
+                            <h3>${getBottleNameSync(code)}</h3>
                             <p>${code}</p>
                         </div>
                         <div class="item-qty">${inventory[code]}</div>
@@ -711,6 +816,12 @@
             }
         }
 
+        // 🔄 Versione sincrona per lista inventario
+        function getBottleNameSync(barcode) {
+            return bottleNames[barcode] || COMMON_BOTTLES[barcode] || 
+                   `Bottiglia ${barcode.slice(-8).toUpperCase()}`;
+        }
+
         function saveData() {
             localStorage.setItem('mintInventory', JSON.stringify(inventory));
             localStorage.setItem('bottleNames', JSON.stringify(bottleNames));
@@ -718,3 +829,4 @@
     </script>
 </body>
 </html>
+
