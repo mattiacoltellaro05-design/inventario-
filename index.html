@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mint Inventory - Gestione Bottiglie</title>
+    <!-- html5-qrcode per scansione camera -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 24px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 30px 24px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .inventory-section {
+            padding: 32px 24px;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .btn {
+            padding: 20px 24px;
+            border: none;
+            border-radius: 16px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .btn-add {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .btn-add.active {
+            background: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+        }
+
+        .btn-remove {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }
+
+        .btn-remove.active {
+            background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .scanner-container {
+            display: none;
+            margin-bottom: 20px;
+        }
+
+        .scanner-container.active {
+            display: block;
+        }
+
+        #scanner {
+            width: 100%;
+            height: 300px;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .scanner-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent 49%, rgba(79, 172, 254, 0.3) 50%, rgba(79, 172, 254, 0.3) 51%, transparent 52%);
+            background-size: 100% 4px;
+            background-repeat: repeat-y;
+            background-position: 0 0;
+            animation: scan 2s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scan {
+            0% { background-position: 0 100%; }
+            100% { background-position: 0 0; }
+        }
+
+        .scan-instructions {
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 12px;
+            padding: 16px;
+            background: #f8fafc;
+            border-radius: 12px;
+        }
+
+        .manual-input {
+            display: none;
+            margin-bottom: 20px;
+        }
+
+        .manual-input.active {
+            display: block;
+        }
+
+        .scan-input {
+            width: 100%;
+            padding: 20px;
+            border: 2px dashed #e0e6ed;
+            border-radius: 16px;
+            text-align: center;
+            font-size: 16px;
+            color: #64748b;
+            background: #f8fafc;
+            transition: all 0.3s ease;
+        }
+
+        .scan-input:focus {
+            outline: none;
+            border-color: #4facfe;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+
+        .quantity-selector {
+            display: none;
+            margin: 20px 0;
+            animation: slideIn 0.3s ease;
+        }
+
+        .quantity-selector.active {
+            display: block;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .qty-group {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .qty-btn {
+            padding: 12px 20px;
+            border: 2px solid #e2e8f0;
+            background: white;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 600;
+        }
+
+        .qty-btn:hover, .qty-btn.selected {
+            background: #4facfe;
+            color: white;
+            border-color: #4facfe;
+        }
+
+        .inventory-list {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 24px;
+        }
+
+        .item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 16px;
+            margin-bottom: 12px;
+            background: white;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .item:hover {
+            transform: translateX(4px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+        }
+
+        .item-info h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+
+        .item-info p {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .item-qty {
+            font-size: 24px;
+            font-weight: 700;
+            color: #4facfe;
+            min-width: 50px;
+            text-align: center;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 24px;
+            color: #94a3b8;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            padding: 24px;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            border-radius: 16px;
+            margin-top: 16px;
+        }
+
+        .stat {
+            text-align: center;
+            padding: 16px;
+        }
+
+        .stat-number {
+            font-size: 28px;
+            font-weight: 700;
+            color: #4facfe;
+        }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        @media (max-width: 480px) {
+            .action-buttons {
+                grid-template-columns: 1fr;
+            }
+            
+            .qty-group {
+                flex-direction: column;
+            }
+            
+            #scanner {
+                height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🍸 Mint Inventory</h1>
+            <p>Scansiona bottiglie con la camera</p>
+        </div>
+
+        <div class="inventory-section">
+            <div class="action-buttons">
+                <button class="btn btn-add" id="btnAdd">
+                    <span>📷</span> Aggiungi
+                </button>
+                <button class="btn btn-remove" id="btnRemove">
+                    <span>📷</span> Finita
+                </button>
+            </div>
+
+            <!-- Scanner Camera -->
+            <div id="scannerContainer" class="scanner-container">
+                <div id="scanner"></div>
+                <div class="scanner-overlay"></div>
+                <div class="scan-instructions">
+                    📱 Punta la camera al codice a barre della bottiglia
+                </div>
+                <button class="btn" onclick="switchToManual()" style="width: 100%; margin-top: 12px; background: #6b7280;">
+                    ⌨️ Inserisci manualmente
+                </button>
+            </div>
+
+            <!-- Input Manuale -->
+            <div id="manualInput" class="manual-input">
+                <input type="text" class="scan-input" id="scanInput" 
+                       placeholder="Incolla codice a barre o digita..." autocomplete="off">
+            </div>
+
+            <!-- Selettore Quantità -->
+            <div id="quantitySelector" class="quantity-selector">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h3 id="currentItemName">Bottiglia</h3>
+                    <p id="currentBarcode"></p>
+                </div>
+                <div class="qty-group">
+                    <button class="qty-btn" data-qty="1">1</button>
+                    <button class="qty-btn" data-qty="6">6</button>
+                    <button class="qty-btn" data-qty="12">12</button>
+                    <button class="qty-btn" data-qty="24">24</button>
+                    <button class="qty-btn" data-qty="altro">Altro</button>
+                </div>
+                <div style="text-align: center;">
+                    <input type="number" id="customQty" class="scan-input" 
+                           placeholder="Quantità personalizzata" style="width: 200px; display: none;">
+                </div>
+            </div>
+
+            <!-- Lista Inventario -->
+            <div id="inventoryList" class="inventory-list"></div>
+            
+            <div id="emptyState" class="empty-state">
+                <div style="font-size: 64px; margin-bottom: 20px;">🍾</div>
+                <h3>Nessuna bottiglia in magazzino</h3>
+                <p>Scansiona la prima bottiglia per iniziare</p>
+            </div>
+
+            <!-- Statistiche -->
+            <div class="stats" id="stats" style="display: none;">
+                <div class="stat">
+                    <div class="stat-number" id="totalItems">0</div>
+                    <div class="stat-label">Bottiglie totali</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-number" id="totalTypes">0</div>
+                    <div class="stat-label">Tipi diversi</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let inventory = JSON.parse(localStorage.getItem('mintInventory')) || {};
+        let currentMode = null; // 'add' o 'remove'
+        let html5QrCode = null;
+        let isScanning = false;
+
+        // Inizializza app
+        document.addEventListener('DOMContentLoaded', function() {
+            updateInventoryDisplay();
+            document.getElementById('btnAdd').addEventListener('click', () => startScan('add'));
+            document.getElementById('btnRemove').addEventListener('click', () => startScan('remove'));
+        });
+
+        async function startScan(mode) {
+            currentMode = mode;
+            
+            // Aggiorna pulsanti
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+            if (mode === 'add') {
+                document.getElementById('btnAdd').classList.add('active');
+            } else {
+                document.getElementById('btnRemove').classList.add('active');
+            }
+
+            // Mostra scanner
+            document.getElementById('scannerContainer').classList.add('active');
+            document.getElementById('manualInput').classList.remove('active');
+            document.getElementById('quantitySelector').classList.remove('active');
+
+            if (!html5QrCode) {
+                html5QrCode = new Html5Qrcode("scanner");
+            }
+
+            const config = {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0,
+                formatsToSupport: [
+                    Html5QrcodeSupportedFormats.CODE_128,
+                    Html5QrcodeSupportedFormats.EAN_13,
+                    Html5QrcodeSupportedFormats.EAN_8,
+                    Html5QrcodeSupportedFormats.UPC_A,
+                    Html5QrcodeSupportedFormats.UPC_E
+                ]
+            };
+
+            try {
+                await html5QrCode.start(
+                    { facingMode: "environment" }, // Camera posteriore
+                    (decodedText) => {
+                        onScanSuccess(decodedText);
+                    },
+                    (error) => {
+                        console.log("Scan error:", error);
+                    },
+                    config
+                );
+                isScanning = true;
+            } catch (err) {
+                console.error("Errore avvio scanner:", err);
+                switchToManual();
+            }
+        }
+
+        function onScanSuccess(decodedText) {
+            if (isScanning) {
+                html5QrCode.stop().then(() => {
+                    isScanning = false;
+                    processBarcode(decodedText);
+                }).catch(err => {
+                    console.error("Errore stop scanner:", err);
+                });
+            }
+        }
+
+        function switchToManual() {
+            document.getElementById('scannerContainer').classList.remove('active');
+            document.getElementById('manualInput').classList.add('active');
+            document.getElementById('scanInput').focus();
+            
+            // Setup input manuale
+            const scanInput = document.getElementById('scanInput');
+            const handleInput = () => {
+                const barcode = scanInput.value.trim();
+                if (barcode) {
+                    processBarcode(barcode);
+                    scanInput.value = '';
+                }
+            };
+
+            scanInput.onkeypress = (e) => {
+                if (e.key === 'Enter') handleInput();
+            };
+            scanInput.onpaste = () => {
+                setTimeout(handleInput, 100);
+            };
+        }
+
+        function processBarcode(barcode) {
+            document.getElementById('currentBarcode').textContent = `Codice: ${barcode}`;
+            document.getElementById('currentItemName').textContent = 
+                currentMode === 'add' ? 'Aggiungi bottiglia' : 'Rimuovi bottiglia';
+            
+            document.getElementById('manualInput').classList.remove('active');
+            document.getElementById('quantitySelector').classList.add('active');
+            
+            setupQuantityButtons(currentMode === 'add', barcode);
+        }
+
+        function setupQuantityButtons(isAdd, barcode) {
+            document.querySelectorAll('.qty-btn').forEach(btn => {
+                btn.classList.remove('selected');
+                btn.onclick = function() {
+                    const qty = this.dataset.qty;
+                    if (qty === 'altro') {
+                        document.getElementById('customQty').style.display = 'inline-block';
+                        document.getElementById('customQty').focus();
+                        return;
+                    }
+                    processQuantity(qty, isAdd, barcode);
+                };
+            });
+
+            document.getElementById('customQty').onkeypress = function(e) {
+                if (e.key === 'Enter') {
+                    const qty = parseInt(this.value) || 1;
+                    processQuantity(qty, isAdd, barcode);
+                }
+            };
+        }
+
+        function processQuantity(qty, isAdd, barcode) {
+            qty = parseInt(qty);
+            
+            if (isAdd) {
+                inventory[barcode] = (inventory[barcode] || 0) + qty;
+            } else {
+                if (inventory[barcode]) {
+                    inventory[barcode] = Math.max(0, inventory[barcode] - qty);
+                    if (inventory[barcode] === 0) {
+                        delete inventory[barcode];
+                    }
+                }
+            }
+            
+            saveInventory();
+            updateInventoryDisplay();
+            resetUI();
+        }
+
+        function resetUI() {
+            currentMode = null;
+            document.querySelectorAll('.btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('scannerContainer').classList.remove('active');
+            document.getElementById('manualInput').classList.remove('active');
+            document.getElementById('quantitySelector').classList.remove('active');
+            document.getElementById('scanInput').value = '';
+            document.getElementById('customQty').style.display = 'none';
+            document.getElementById('customQty').value = '';
+            
+            if (html5QrCode && isScanning) {
+                html5QrCode.stop().catch(console.error);
+                isScanning = false;
+            }
+        }
+
+        function updateInventoryDisplay() {
+            const list = document.getElementById('inventoryList');
+            const emptyState = document.getElementById('emptyState');
+            const stats = document.getElementById('stats');
+            
+            list.innerHTML = '';
+            let totalItems = 0;
+            let totalTypes = 0;
+            
+            for (let barcode in inventory) {
+                if (inventory[barcode] > 0) {
+                    totalItems += inventory[barcode];
+                    totalTypes++;
+                    const item = createItemElement(barcode, inventory[barcode]);
+                    list.appendChild(item);
+                }
+            }
+            
+            document.getElementById('totalItems').textContent = totalItems;
+            document.getElementById('totalTypes').textContent = totalTypes;
+            
+            if (totalItems === 0) {
+                emptyState.style.display = 'block';
+                stats.style.display = 'none';
+            } else {
+                emptyState.style.display = 'none';
+                stats.style.display = 'grid';
+            }
+        }
+
+        function createItemElement(barcode, quantity) {
+            const item = document.createElement('div');
+            item.className = 'item';
+            item.onclick = () => {
+                navigator.clipboard.writeText(barcode).then(() => {
+                    // Feedback visivo
+                    item.style.background = '#dbeafe';
+                    setTimeout(() => {
+                        item.style.background = '';
+                    }, 1000);
+                });
+            };
+            
+            const displayName = barcode.slice(-12).replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+            
+            item.innerHTML = `
+                <div class="item-info">
+                    <h3>${displayName}</h3>
+                    <p>Codice: ${barcode}</p>
+                </div>
+                <div class="item-qty">${quantity}</div>
+            `;
+            
+            return item;
+        }
+
+        function saveInventory() {
+            localStorage.setItem('mintInventory', JSON.stringify(inventory));
+        }
+    </script>
+</body>
+</html>
